@@ -141,6 +141,3 @@ tmp/
 
 # MacOS
 .DS_Store
-
-# Streamlit
-.streamlit/
