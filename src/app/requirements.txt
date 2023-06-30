@@ -1,2 +1,3 @@
 biopython
+streamlit-aggrid
 git+https://github.com/aniketfadia96/neglected-diagnostics.git@demo-app
