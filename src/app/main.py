@@ -7,7 +7,7 @@ things end to end and then work towards improving individual modules.
 
 import pandas as pd
 import streamlit as st
-from st_aggrid import AgGrid
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 
 from genetic_testing.routers import ncbi
 
@@ -18,6 +18,27 @@ if "df_summary" not in st.session_state:
     st.session_state["df_summary"] = pd.DataFrame()
     st.session_state["rerun"] = False
     st.session_state["summary_form_submit_count"] = 0
+
+# AgGrid
+defaultColDef = {
+    "filter": True,
+    "resizable": True,
+    "sortable": True,
+    "editable": True,   
+}
+
+# column_defs = [{"headerName": "Title", 
+#                 "field": "Title", 
+#                 "filter": "agMultiColumnFilter",
+#                 "filterParams": {
+#                     "filterOptions": ["contains", "notContains"]
+#                 }}]
+
+options = {
+    "rowSelection": "multiple",
+    "rowMultiSelectWithClick": True,
+    "enableRangeSelection": True,
+}
 
 def rerun():
     st.session_state.rerun = True
@@ -46,19 +67,47 @@ with st.form("query"):
     
         st.session_state["SUMMARY_FORM_SUBMIT"] = True
         
+selected_df = pd.DataFrame()
 if st.session_state["SUMMARY_FORM_SUBMIT"]:
     #st.write("Number of rows in df_summary_edited before: ", len(st.session_state["df_summary"]))
     
-    st.session_state["df_summary"] = st.data_editor(st.session_state["df_summary"], num_rows="dynamic", on_change=rerun)
+    #st.session_state["df_summary"] = st.data_editor(st.session_state["df_summary"], num_rows="dynamic", on_change=rerun)
     #AgGrid(st.session_state["df_summary"])
+    options_builder = GridOptionsBuilder.from_dataframe(st.session_state["df_summary"])
+    options_builder.configure_pagination(paginationAutoPageSize=True)
+    options_builder.configure_side_bar()
+    options_builder.configure_selection("multiple", use_checkbox=True)
+    # options_builder.configure_column("Title", filter="agTextColumnFilter", filterParams={'filterOptions': ['contains', 'notContains']})
+    options_builder.configure_column("Title", filter="agMultiColumnFilter", filterParams={"maxNumConditions": 4})
+    options_builder.configure_default_column(**defaultColDef)
+    options_builder.configure_grid_options(**options)
+    grid_options = options_builder.build()
+    grid_table = AgGrid(st.session_state["df_summary"], 
+                        gridOptions=grid_options,
+                        update_mode=GridUpdateMode.MODEL_CHANGED,
+                        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,)
+    #rerun()
     
-    #st.write("Number of rows in df_summary_edited after: ", len(st.session_state["df_summary"]))
+    #st.write("Number of rows in df_summary_edited after: ", len(grid_table["data"]))
+    #st.write(grid_table["data"])
+    #st.write(type(grid_table))
+    #st.write(grid_table.keys())
+    #selected_df = grid_table["selected_rows"]
+    # if selected_df:
+    #     st.write('Selected rows')
+    #     st.dataframe(selected_df)
+
+    filtered_df = grid_table['data']
+    st.write('Filtered rows')
+    st.dataframe(filtered_df)
+    
 
 #st.write(st.session_state)
 
 if st.session_state.rerun:
     st.session_state.rerun = False
     st.experimental_rerun()
+
 
 
 
