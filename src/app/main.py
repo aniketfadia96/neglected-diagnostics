@@ -51,6 +51,14 @@ def get_data(database, search_term):
     df_summaries = pd.DataFrame.from_dict(parsed_summaries)
     return df_summaries
 
+def preprocess_summary_data():
+    # Extract the species
+    st.session_state["df_summary"]["Species"] = st.session_state["df_summary"]["Title"].apply(lambda x: ' '.join(x.split()[:2]))
+
+    # Reorder the columns
+    column_order = ["Species", "Title", "TaxId", "Id", "Length", "Gi", "CreateDate", "UpdateDate", "Status"]
+    st.session_state["df_summary"] = st.session_state["df_summary"].reindex(columns=column_order)
+
 st.title("Neglected Diagnostics: Perform Genetic Testing At Scale!")
 
 with st.form("query"):    
@@ -63,8 +71,9 @@ with st.form("query"):
         print("Summary form submission count",  st.session_state["summary_form_submit_count"])
         
         st.session_state["df_summary"] = get_data(database, search_term)
-        print("Size of df_summary_edited after fetching data: ", len(st.session_state["df_summary"]))
-    
+        print("Number of rows in summary after fetching data: ", len(st.session_state["df_summary"]))
+        preprocess_summary_data()
+        
         st.session_state["SUMMARY_FORM_SUBMIT"] = True
         
 selected_df = pd.DataFrame()
@@ -72,13 +81,13 @@ if st.session_state["SUMMARY_FORM_SUBMIT"]:
     #st.write("Number of rows in df_summary_edited before: ", len(st.session_state["df_summary"]))
     
     #st.session_state["df_summary"] = st.data_editor(st.session_state["df_summary"], num_rows="dynamic", on_change=rerun)
-    #AgGrid(st.session_state["df_summary"])
+    
     options_builder = GridOptionsBuilder.from_dataframe(st.session_state["df_summary"])
-    options_builder.configure_pagination(paginationAutoPageSize=True)
+    options_builder.configure_pagination(paginationAutoPageSize=False, paginationPageSize=10)
     options_builder.configure_side_bar()
     options_builder.configure_selection("multiple", use_checkbox=True)
-    # options_builder.configure_column("Title", filter="agTextColumnFilter", filterParams={'filterOptions': ['contains', 'notContains']})
     options_builder.configure_column("Title", filter="agMultiColumnFilter", filterParams={"maxNumConditions": 4})
+    options_builder.configure_column("Species", filter="agMultiColumnFilter")
     options_builder.configure_default_column(**defaultColDef)
     options_builder.configure_grid_options(**options)
     grid_options = options_builder.build()
@@ -86,7 +95,6 @@ if st.session_state["SUMMARY_FORM_SUBMIT"]:
                         gridOptions=grid_options,
                         update_mode=GridUpdateMode.MODEL_CHANGED,
                         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,)
-    #rerun()
     
     #st.write("Number of rows in df_summary_edited after: ", len(grid_table["data"]))
     #st.write(grid_table["data"])
@@ -104,9 +112,9 @@ if st.session_state["SUMMARY_FORM_SUBMIT"]:
 
 #st.write(st.session_state)
 
-if st.session_state.rerun:
-    st.session_state.rerun = False
-    st.experimental_rerun()
+# if st.session_state.rerun:
+#     st.session_state.rerun = False
+#     st.experimental_rerun()
 
 
 
@@ -120,75 +128,3 @@ if st.session_state.rerun:
 #     st.write(document)
 
 
-# import streamlit as st
-# import pandas as pd
-
-# st.write(st.session_state)
-
-# # Initialize session state with dataframes
-# # Include initialization of "edited" slots by copying originals
-# if 'df1' not in st.session_state:
-#     st.session_state.df1 = pd.DataFrame({
-#         "col1": ["a1", "a2", "a3"],
-#         "Values": [1, 2, 3]
-#     })
-#     st.session_state.edited_df1 = st.session_state.df1.copy()
-#     st.session_state.df2 = pd.DataFrame({
-#         "col1": ["b1", "b2", "b3"], 
-#         "Values": [1, 2, 3]
-#     })
-#     st.session_state.edited_df2 = st.session_state.df2.copy()
-
-# # Save edits by copying edited dataframes to "original" slots in session state
-# def save_edits():
-#     st.session_state.df1 = st.session_state.edited_df1.copy()
-#     st.session_state.df2 = st.session_state.edited_df2.copy()
-
-# # Sidebar to select page and commit changes upon selection
-# page = st.sidebar.selectbox("Select: ", ("A","B"), on_change=save_edits)
-
-# # Convenient shorthand notation
-# df1 = st.session_state.df1
-# df2 = st.session_state.df2
-
-# # Page functions commit edits in real time to "editied" slots in session state
-# def funct1():
-#     st.session_state.edited_df1 = st.data_editor(df1, num_rows="dynamic")
-#     st.write(st.session_state)
-#     return
-
-# def funct2():
-#     st.session_state.edited_df2 = st.data_editor(df2, num_rows="dynamic")
-#     st.write(st.session_state)
-#     return
-
-# if  page == "A":
-#     st.header("Page A")
-#     funct1()
-# elif page == "B":
-#     st.header("Page B")
-#     funct2()
-
-
-# import streamlit as st
-
-# st.write(st.session_state)
-
-# with st.form('my_form'):
-#     st.session_state.A = st.text_input('A')
-#     st.text_input('B', key='B')
-#     st.form_submit_button('Submit')
-
-# st.write(st.session_state)
-
-# import streamlit as st
-# import pandas as pd
-
-# if 'df' not in st.session_state:
-#     st.session_state.df = pd.DataFrame({'A':[1,2,3,4],'B':[1,2,3,4]})
-
-# edited_df = st.data_editor(st.session_state.df)
-
-# st.session_state.df = edited_df
-
-# st.write(st.session_state)
