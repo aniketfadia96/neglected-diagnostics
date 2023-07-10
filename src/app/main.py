@@ -109,10 +109,10 @@ if st.session_state["FILTER"]:
     st.write("Size of final dataframe: ", len(df_filter_output))
 
     if st.button('Download'):
-        document = ncbi.fetch(database, get_download_ids(df_filter_output))
-        st.write(document)
+        file_buffer = ncbi.fetch(database, get_download_ids(df_filter_output))
+        st.download_button(label="Download", data=file_buffer.getvalue(), file_name="example.fasta")
+        #st.write(document)
     
-
 #st.write(st.session_state)
 
 # if st.session_state.rerun:

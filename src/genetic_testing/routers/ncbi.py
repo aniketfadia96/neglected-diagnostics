@@ -5,6 +5,7 @@ functionality
 """
 
 import os
+from io import StringIO, BytesIO
 
 outdir = "ncbi_downloads"
 os.makedirs(outdir, exist_ok=True)
@@ -91,7 +92,7 @@ def parse_summary(document_summaries: ListElement) -> List[Dict[str, str]]:
     return parsed_summaries
 
 
-def fetch(database: str, ids: Union[int, List[int]]) -> str:
+def fetch(database: str, ids: Union[int, List[int]]) -> StringIO:
     """Download the document summaries for the input UIDs.
 
     This function downloads the document summaries for the input list of UIDs and datasource.
@@ -100,13 +101,26 @@ def fetch(database: str, ids: Union[int, List[int]]) -> str:
 
     Returns:
     """
-    handle = Entrez.efetch(db=database, id=ids, retmax=10000, rettype="fasta")
+    handle = Entrez.efetch(
+        db=database, id=ids, retmax=10000, rettype="fasta", retmode="text"
+    )
     if handle:
-        sequence_records = SeqIO.parse(handle, "fasta")
-        records_written = SeqIO.write(
-            sequence_records, os.path.join(outdir, "example.fasta"), "fasta"
-        )
-        print(f"Successfully downloaded {records_written} records")
-        record = "File Downloaded Successfully!"
+        sequences_iterator = SeqIO.parse(handle, "fasta")
+        # records_written = SeqIO.write(
+        #     sequence_records, os.path.join(outdir, "example.fasta"), "fasta"
+        # )
+        # print(f"Successfully downloaded {records_written} records")
+        # record = "File Downloaded Successfully!"
+
+        # Create a BytesIO object to store the file content in memory
+        sequences_str_buffer = StringIO()
+        # Write the data to the BytesIO object in FASTA format
+        SeqIO.write(sequences_iterator, sequences_str_buffer, "fasta")
+        # Reset the file position indicator to the beginning
+        sequences_str_buffer.seek(0)
+        # Convert the string data to bytes
+        # sequences_bytes_buffer = BytesIO(sequences_str_buffer.getvalue().encode())
+        
         handle.close()
-    return record
+
+    return sequences_str_buffer
