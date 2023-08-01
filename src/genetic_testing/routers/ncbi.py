@@ -5,19 +5,20 @@ functionality
 """
 
 import os
-from io import StringIO, BytesIO
+from io import StringIO
+from typing import Dict, List
 
-outdir = "ncbi_downloads"
-os.makedirs(outdir, exist_ok=True)
-from typing import Dict, List, Union
-
+import pandas as pd
 import streamlit as st
-from Bio import SeqIO
-from Bio import Entrez
-from Bio.Entrez.Parser import DictionaryElement, ListElement
+from Bio import Entrez, SeqIO
+from Bio.Entrez.Parser import DictionaryElement, ListElement, StringElement
+
+from utils.log import _init_logger
+
+logger = _init_logger(__name__)
 
 ENTREZ_EMAIL = "ENTREZ_EMAIL"
-SUMMARY_FIELDS = [
+NCBI_SUMMARY_FIELDS = [
     "Id",
     "Title",
     "Gi",
@@ -27,6 +28,9 @@ SUMMARY_FIELDS = [
     "Length",
     "Status",
 ]
+RETMAX = 10000
+RETTYPE = "fasta"  # Specifies the record view returned, such as Abstract or MEDLINE from PubMed, or GenPept or FASTA from protein.
+RETMODE = "text"  # Specifies the data format of the records returned, such as plain text, HMTL or XML.
 
 if ENTREZ_EMAIL in st.secrets:
     Entrez.email = st.secrets[ENTREZ_EMAIL]
@@ -34,93 +38,137 @@ else:
     Entrez.email = os.environ.get(ENTREZ_EMAIL, "")
 
 
-def search(database: str, term: str) -> List[int]:
+def _search(database: str, term: str) -> ListElement[StringElement]:
     """Get the List of UIDs matching the Entrez query.
 
-    This function searches the provided NCBI database and returns the list of UIDs matching the
-    Entrez query.
+    This function searches the provided Entrez database and returns the list of UIDs matching the Entrez query.
 
-    Args:
-        database (str): Name of the Entrez database.
-        term (str): Entrez text query.
+    Parameters
+    ----------
+    database : str
+        Name of the Entrez database.
+    term : str
+        Entrez text query.
 
-    Returns:
-        List[int]: A list of UIDs.
+    Returns
+    -------
+    ListElement[StringElement]
+       A list of UIDs.
     """
-    handle = Entrez.esearch(db=database, term=term, retmax=10000)
+    handle = Entrez.esearch(db=database, term=term, retmax=RETMAX)
     uids = []
     if handle:
         record = Entrez.read(handle)
         uids = record["IdList"]
-
+        handle.close()
     return uids
 
 
-def summary(database: str, ids: Union[int, List[int]]) -> DictionaryElement:
+def _summary(
+    database: str, ids: ListElement[StringElement]
+) -> ListElement[DictionaryElement]:
     """Get the document summaries for the input UIDs.
 
-    This function returns the document summaries for the input list of UIDs and datasource.
+    This function returns the document summaries for the input list of UIDs and Entrez database.
 
-    Args:
-        database (str): Name of the Entrez database.
-        term (str): Entrez text query.
+    Parameters
+    ----------
+    database : str
+        Name of the Entrez database.
+    ids : ListElement[StringElement]
+        A list of UIDs.
 
-    Returns:
-        : A list of UIDs.
+    Returns
+    -------
+    ListElement[DictionaryElement]
+        A list of dictionaries where each dictionary element is a single summary
     """
-    handle = Entrez.esummary(db=database, id=ids, retmax=10000)
+    handle = Entrez.esummary(db=database, id=ids, retmax=RETMAX)
     if handle:
         record = Entrez.read(handle)
         handle.close()
     return record
 
 
-def parse_summary(document_summaries: ListElement) -> List[Dict[str, str]]:
-    """Get the document summaries for the input UIDs.
+def _parse_summary(
+    document_summaries: ListElement[DictionaryElement],
+) -> List[Dict[str, str]]:
+    """Parse document summaries.
 
-    This function returns the document summaries for the input list of UIDs and datasource.
+    This function parses the input document summaries and selects a subset of columns for the final summary
 
-    Args:
+    Parameters
+    ----------
+    document_summaries : ListElement[DictionaryElement]
+       A list of dictionary elements representing document summaries.
 
-    Returns:
+    Returns
+    -------
+    List[Dict[str, str]]
+        A list of dictionaries containing parsed document summaries.
     """
     parsed_summaries = []
     for document_summary in document_summaries:
         parsed_summaries.append(
-            {key: document_summary.get(key, None) for key in SUMMARY_FIELDS}
+            {key: document_summary.get(key, None) for key in NCBI_SUMMARY_FIELDS}
         )
     return parsed_summaries
 
 
-def fetch(database: str, ids: Union[int, List[int]]) -> StringIO:
-    """Download the document summaries for the input UIDs.
+def get_data(database: str, search_term: str) -> pd.DataFrame:
+    """Retrieve data from the Entrez database based on a search term.
 
-    This function downloads the document summaries for the input list of UIDs and datasource.
+    Parameters
+    ----------
+    database : str
+        Name of the Entrez database.
+    search_term : str
+        The term used to search the specified database.
 
-    Args:
+    Returns
+    -------
+    pd.DataFrame
+        A pandas DataFrame containing the retrieved data.
+    """
+    uids = _search(database, search_term)
+    logger.info(
+        f"Total number of documents returned for database = '{database}' and search query = '{search_term}' is {len(uids)}"
+    )
+    document_summaries = _summary(database, uids)
+    parsed_summaries = _parse_summary(document_summaries)
+    df_summaries = pd.DataFrame.from_dict(parsed_summaries)
+    return df_summaries
 
-    Returns:
+
+def fetch_data(database: str, ids: List[int]) -> StringIO:
+    """Download the sequence data for the input UIDs from the specified Entrez database.
+
+    Parameters
+    ----------
+    database : str
+        Name of the Entrez database from which the sequence data will be fetched.
+    ids : List[int]
+        List of UIDs.
+
+    Returns
+    -------
+    StringIO
+        A StringIO object containing the fetched sequence data in FASTA format.
+
+    Notes
+    -----
+    This function uses the Entrez.efetch method from the Biopython library to retrieve sequence data from the specified Entrez database based on the provided list of UIDs. The data is fetched in FASTA format. The function returns a StringIO object that contains the fetched sequence data.
     """
     handle = Entrez.efetch(
-        db=database, id=ids, retmax=10000, rettype="fasta", retmode="text"
+        db=database, id=ids, retmax=RETMAX, rettype=RETTYPE, retmode=RETMODE
     )
     if handle:
-        sequences_iterator = SeqIO.parse(handle, "fasta")
-        # records_written = SeqIO.write(
-        #     sequence_records, os.path.join(outdir, "example.fasta"), "fasta"
-        # )
-        # print(f"Successfully downloaded {records_written} records")
-        # record = "File Downloaded Successfully!"
-
-        # Create a BytesIO object to store the file content in memory
+        sequences_iterator = SeqIO.parse(handle, RETTYPE)
         sequences_str_buffer = StringIO()
-        # Write the data to the BytesIO object in FASTA format
-        SeqIO.write(sequences_iterator, sequences_str_buffer, "fasta")
+        # Write the data to the StringIO object in FASTA format
+        SeqIO.write(sequences_iterator, sequences_str_buffer, RETTYPE)
         # Reset the file position indicator to the beginning
         sequences_str_buffer.seek(0)
-        # Convert the string data to bytes
-        # sequences_bytes_buffer = BytesIO(sequences_str_buffer.getvalue().encode())
-        
         handle.close()
 
     return sequences_str_buffer

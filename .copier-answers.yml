@@ -9,7 +9,7 @@ include_notebooks: true
 module_name: genetic_testing
 mypy_type_checking: none
 preferred_linter: pylint
-project_license: MIT
+project_license: BSD
 project_name: neglected-diagnostics
 use_gitlfs: none
 use_isort: true
