@@ -1,2 +1,2 @@
 biopython
-git+https://github.com/uw-ssec/neglected-diagnostics.git
+git+https://github.com/aniketfadia96/neglected-diagnostics.git@main
