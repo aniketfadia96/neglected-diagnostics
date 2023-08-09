@@ -1,3 +1,5 @@
+from typing import List
+
 import streamlit as st
 
 from app.common.constants import NCBI_DF
@@ -34,3 +36,33 @@ def format_ncbi_summary() -> None:
         "Status",
     ]
     st.session_state[NCBI_DF] = st.session_state[NCBI_DF].reindex(columns=column_order)
+
+
+def get_top_organisms_counts(top_n=15) -> str:
+    """Get the top N organisms and their counts in the session's NCBI DataFrame.
+
+    Parameters
+    ----------
+    top_n : int, optional
+        Number of top organisms to show, by default 15
+
+    Returns
+    -------
+    str
+        A formatted string containing the top N organisms and their counts, separated by two newlines ("\n\n").
+    """
+    # Calculate counts of species and sort by counts in descending order
+    species_counts = (
+        st.session_state[NCBI_DF]["Species"]
+        .value_counts()
+        .sort_values(ascending=False)
+        .head(top_n)
+    )
+
+    # Create the desired output format
+    species_counts_list = [
+        f"{value} ({count})"
+        for value, count in zip(species_counts.index, species_counts)
+    ]
+
+    return "\n\n".join(species_counts_list)

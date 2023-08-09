@@ -47,7 +47,7 @@ def _preprocessing(df: pd.DataFrame):
     df["UpdateDate"] = pd.to_datetime(date_strings, format="%Y/%m/%d")
 
 
-def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+def filter_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     """
     Filter a DataFrame based on user-selected criteria.
 
@@ -62,6 +62,8 @@ def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     -------
     pd.DataFrame
         The filtered DataFrame based on the user-selected criteria.
+    dict
+        A dictionary containing the applied filters.
 
     Notes
     -----
@@ -72,9 +74,10 @@ def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     - Text columns: Supports filtering based on substrings or regular expressions.
     """
     st.session_state[NCBI_DF_FILTER] = st.checkbox("Add filters")
+    filters = {}  # Dictionary to store the applied filters
 
     if st.session_state[NCBI_DF_FILTER] is False:
-        return df
+        return df, filters
 
     df = df.copy()
     _preprocessing(df)
@@ -92,17 +95,19 @@ def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                     df[column].unique(),
                 )
                 df = df[df[column].isin(user_cat_input)]
+                filters[column] = user_cat_input
             elif is_numeric_dtype(df[column]):
                 with right:
                     # Create a sub column layout
                     sub_columns = st.columns(2)
                     # Add input boxes for minimum and maximum values in the row
                     with sub_columns[0]:
-                        min_length = st.number_input("Enter Minimum")
+                        min_length = st.number_input("Enter Minimum Length")
 
                     with sub_columns[1]:
-                        max_length = st.number_input("Enter Maximum")
+                        max_length = st.number_input("Enter Maximum Length")
                 df = df[df[column].between(min_length, max_length)]
+                filters[column] = (min_length, max_length)
             elif is_datetime64_any_dtype(df[column]):
                 user_date_input = right.date_input(
                     f"Values for {column}",
@@ -115,11 +120,13 @@ def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                     user_date_input = tuple(map(pd.to_datetime, user_date_input))
                     start_date, end_date = user_date_input
                     df = df.loc[df[column].between(start_date, end_date)]
+                    filters[column] = (start_date, end_date)
             else:
                 user_text_input = right.text_input(
                     f"Substring or regex in {column}",
                 )
                 if user_text_input:
                     df = df[df[column].astype(str).str.contains(user_text_input)]
+                    filters[column] = user_text_input
 
-    return df
+    return df, filters
